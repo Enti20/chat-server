@@ -1,3 +1,1 @@
-module go-chat-server
-
-go 1.23.0
+module chat-server
