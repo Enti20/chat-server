@@ -1,27 +1,14 @@
 package main
 
 import (
-	"fmt"
-	"net"
+	"log"
+	"web-server/server"
 )
 
 func main() {
-	message := "Hello, I am a server" // отправляемое сообщение
-	listener, err := net.Listen("tcp", ":4545")
-
+	// Запуск сервера на порту 8080
+	err := server.StartServer(":8080")
 	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	defer listener.Close()
-	fmt.Println("Server is listening...")
-	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		conn.Write([]byte(message))
-		conn.Close()
+		log.Fatalf("Ошибка при запуске сервера: %v", err)
 	}
 }
