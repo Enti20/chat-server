@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #messages {
+            height: 300px;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+        }
+        #messageInput {
+            width: 80%;
+            padding: 10px;
+        }
+        #sendButton {
+            padding: 10px 20px;
+        }
+    </style>
+</head>
+<body>
+<h1>WebSocket Chat</h1>
+<div id="messages"></div>
+<input type="text" id="messageInput" placeholder="Введите сообщение...">
+<button id="sendButton">Отправить</button>
+
+<script>
+    const socket = new WebSocket("ws://localhost:8096/ws");
+
+    const messagesDiv = document.getElementById("messages");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+
+    socket.onopen = function(event) {
+        console.log("Соединение установлено");
+        appendMessage("Соединение установлено");
+    };
+
+    socket.onmessage = function(event) {
+        console.log("Получено сообщение:", event.data);
+        appendMessage(event.data);
+    };
+
+    socket.onclose = function(event) {
+        console.log("Соединение закрыто");
+        appendMessage("Соединение закрыто");
+    };
+
+    socket.onerror = function(error) {
+        console.error("Ошибка WebSocket:", error);
+        appendMessage("Ошибка WebSocket");
+    };
+
+    sendButton.onclick = function() {
+        const message = messageInput.value;
+        if (message) {
+            socket.send(message);
+            messageInput.value = "";
+        }
+    };
+
+    function appendMessage(message) {
+        const messageElement = document.createElement("div");
+        messageElement.textContent = message;
+        messagesDiv.appendChild(messageElement);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+</script>
+</body>
+</html>
