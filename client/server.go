@@ -20,7 +20,7 @@ func generateClientID() int {
 	return clientIDCounter
 }
 
-// Server represents a WebSocket server.
+// Server представляет WebSocket сервер.
 type Server struct {
 	Pattern   string
 	Messages  []*Message
@@ -32,7 +32,7 @@ type Server struct {
 	ErrCh     chan error
 }
 
-// Listen starts the WebSocket server.
+// Listen запускает WebSocket сервер.
 func (s *Server) Listen() {
 	onConnected := func(ws *websocket.Conn) {
 		defer func() {
@@ -47,11 +47,11 @@ func (s *Server) Listen() {
 		client.Listen()
 	}
 
-	// Используем http.HandleFunc для регистрации обработчика
 	http.HandleFunc(s.Pattern, func(w http.ResponseWriter, r *http.Request) {
 		var upgrader = websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
+			CheckOrigin:     func(r *http.Request) bool { return true },
 		}
 		ws, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
@@ -68,6 +68,7 @@ func (s *Server) Listen() {
 			s.sendPastMessages(c)
 		case c := <-s.DelCh:
 			delete(s.Clients, c.ID)
+			log.Printf("Клиент %d отключен", c.ID)
 		case msg := <-s.SendAllCh:
 			s.Messages = append(s.Messages, msg)
 			s.SendAll(msg)
@@ -79,7 +80,7 @@ func (s *Server) Listen() {
 	}
 }
 
-// NewClient creates a new WebSocket client.
+// NewClient создает нового WebSocket клиента.
 func NewClient(ws *websocket.Conn, server *Server) *Client {
 	return &Client{
 		ID:     generateClientID(),
@@ -90,31 +91,31 @@ func NewClient(ws *websocket.Conn, server *Server) *Client {
 	}
 }
 
-// SendAll sends a message to all connected clients.
+// SendAll отправляет сообщение всем подключенным клиентам.
 func (s *Server) SendAll(msg *Message) {
 	for _, client := range s.Clients {
-		client.Ch <- msg
+		client.Ch <- msg // Отправляем сообщение в канал клиента
 	}
 }
 
-// sendPastMessages sends past messages to a new client.
+// sendPastMessages отправляет прошлые сообщения новому клиенту.
 func (s *Server) sendPastMessages(c *Client) {
 	for _, msg := range s.Messages {
 		c.Ch <- msg
 	}
 }
 
-// Err handles errors.
+// Err обрабатывает ошибки.
 func (s *Server) Err(err error) {
 	s.ErrCh <- err
 }
 
-// Del removes a client from the server.
+// Del удаляет клиента из сервера.
 func (s *Server) Del(c *Client) {
 	s.DelCh <- c
 }
 
-// Add adds a new client to the server.
+// Add добавляет нового клиента на сервер.
 func (s *Server) Add(c *Client) {
 	s.AddCh <- c
 }

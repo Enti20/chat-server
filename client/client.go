@@ -5,7 +5,7 @@ import (
 	"io"
 )
 
-// Client represents a WebSocket client.
+// Client представляет WebSocket клиента.
 type Client struct {
 	ID     int
 	WS     *websocket.Conn
@@ -14,7 +14,7 @@ type Client struct {
 	DoneCh chan bool
 }
 
-// Listen starts listening for messages from the client.
+// Listen начинает прослушивание сообщений от клиента.
 func (client *Client) Listen() {
 	go client.listenWrite()
 	client.listenRead()
@@ -40,31 +40,15 @@ func (client *Client) listenWrite() {
 
 func (client *Client) listenRead() {
 	for {
-		select {
-		case <-client.DoneCh:
-			client.Server.Del(client)
+		var msg Message
+		err := client.WS.ReadJSON(&msg)
+		if err == io.EOF {
 			client.DoneCh <- true
 			return
-		default:
-			var msg Message
-			err := client.WS.ReadJSON(&msg)
-			if err == io.EOF {
-				client.DoneCh <- true
-			} else if err != nil {
-				client.Server.Err(err)
-			} else {
-				client.Server.SendAll(&msg)
-			}
+		} else if err != nil {
+			client.Server.Err(err)
+			return
 		}
+		client.Server.SendAll(&msg) // Отправляем сообщение всем клиентам
 	}
-}
-
-// Message represents a chat message.
-type Message struct {
-	Author string `json:"author"`
-	Body   string `json:"body"`
-}
-
-func (msg *Message) String() string {
-	return msg.Author + " says " + msg.Body
 }

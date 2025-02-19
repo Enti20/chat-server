@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebSocket Chat</title>
+    <title>WebSocket Чат</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -23,10 +23,21 @@
         #sendButton {
             padding: 10px 20px;
         }
+        .message {
+            margin-bottom: 10px;
+        }
+        .client-id {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .own-message {
+            color: green;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-<h1>WebSocket Chat</h1>
+<h1>WebSocket Чат</h1>
 <div id="messages"></div>
 <input type="text" id="messageInput" placeholder="Введите сообщение...">
 <button id="sendButton">Отправить</button>
@@ -38,39 +49,66 @@
     const messageInput = document.getElementById("messageInput");
     const sendButton = document.getElementById("sendButton");
 
+    let clientID = null;
+
     socket.onopen = function(event) {
         console.log("Соединение установлено");
-        appendMessage("Соединение установлено");
+        appendMessage("Система", "Соединение установлено");
     };
 
     socket.onmessage = function(event) {
-        console.log("Получено сообщение:", event.data);
-        appendMessage(event.data);
+        const message = JSON.parse(event.data);
+        console.log("Получено сообщение:", message);
+
+        // Присвоение clientID
+        if (clientID === null) {
+            clientID = message.ClientID; // Используем ClientID из сообщения
+            appendMessage("Система", `Ваш ID: ${clientID}`);
+        }
+
+        const isOwnMessage = message.ClientID === clientID;
+        appendMessage(isOwnMessage ? "Вы" : `Клиент ${message.ClientID}`, message.Body, isOwnMessage);
     };
 
     socket.onclose = function(event) {
         console.log("Соединение закрыто");
-        appendMessage("Соединение закрыто");
+        appendMessage("Система", "Соединение закрыто");
     };
 
     socket.onerror = function(error) {
         console.error("Ошибка WebSocket:", error);
-        appendMessage("Ошибка WebSocket");
+        appendMessage("Система", "Ошибка WebSocket");
     };
 
     sendButton.onclick = function() {
         const message = messageInput.value;
         if (message) {
-            socket.send(message);
+            const msg = {
+                client_id: clientID,
+                author: "Вы",
+                body: message
+            };
+            appendMessage("Вы", message, true);
+            socket.send(JSON.stringify(msg)); // Отправляем сообщение в нужном формате
             messageInput.value = "";
         }
     };
 
-    function appendMessage(message) {
+    function appendMessage(author, message, isOwnMessage = false) {
         const messageElement = document.createElement("div");
-        messageElement.textContent = message;
+        messageElement.className = "message";
+
+        const authorElement = document.createElement("div");
+        authorElement.className = isOwnMessage ? "own-message" : "client-id";
+        authorElement.textContent = author + ":";
+
+        const textElement = document.createElement("div");
+        textElement.textContent = message;
+
+        messageElement.appendChild(authorElement);
+        messageElement.appendChild(textElement);
         messagesDiv.appendChild(messageElement);
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight; // Прокручиваем вниз
     }
 </script>
 </body>
