@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Чат</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        #messages {
+            height: 300px;
+            border: 1px solid #000;
+            padding: 10px;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+        }
+        #messageInput {
+            width: 80%;
+            padding: 10px;
+        }
+        #sendButton {
+            padding: 10px 20px;
+        }
+        .message {
+            margin-bottom: 10px;
+        }
+        .client-id {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .own-message {
+            color: #15e815;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+<h1>WebSocket Чат</h1>
+<div id="messages"></div>
+<input type="text" id="messageInput" placeholder="Введите сообщение...">
+<button id="sendButton">Отправить</button>
+
+<script>
+    const socket = new WebSocket("ws://localhost:9000/ws");
+
+    const messagesDiv = document.getElementById("messages");
+    const messageInput = document.getElementById("messageInput");
+    const sendButton = document.getElementById("sendButton");
+
+    let clientID = null;
+
+    socket.onmessage = function(event) {
+        const message = JSON.parse(event.data);
+
+        if (clientID === null) {
+            clientID = message.client_id;
+            appendMessage("Система", `Ваш ID: ${clientID}`);
+        }
+
+        const isOwnMessage = message.client_id === clientID;
+        appendMessage(isOwnMessage ? "Вы" : `Клиент ${message.client_id}`, message.body, isOwnMessage);
+    };
+
+    sendButton.onclick = function() {
+        const message = messageInput.value;
+        if (message) {
+            socket.send(JSON.stringify({ client_id: clientID, body: message }));
+            messageInput.value = "";
+        }
+    };
+
+    function appendMessage(author, message, isOwnMessage = false) {
+        const msgDiv = document.createElement("div");
+        msgDiv.className = "message";
+        msgDiv.innerHTML = `<strong>${author}:</strong> ${message}`;
+        messagesDiv.appendChild(msgDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+</script>
+</body>
+</html>
