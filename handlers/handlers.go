@@ -1,79 +1,92 @@
 package handlers
 
 import (
-	"github.com/gorilla/websocket"
+	"fmt"
 	"log"
 	"net/http"
-	"time"
+	"sync"
+
+	"github.com/gorilla/websocket"
 )
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
+	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
-// HandleConnections обрабатывает входящие WebSocket-соединения
+var (
+	clients         = make(map[*websocket.Conn]int)
+	clientsMu       sync.Mutex
+	clientIDCounter int
+)
+
+// Message представляет сообщение чата.
+type Message struct {
+	ClientID int    `json:"client_id"`
+	Author   string `json:"author"`
+	Body     string `json:"body"`
+}
+
+// HandleConnections обрабатывает входящие WebSocket-соединения.
 func HandleConnections(w http.ResponseWriter, r *http.Request) {
-	// Обновляем соединение до WebSocket
 	ws, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Ошибка при установке соединения:", err)
+		return
 	}
 	defer ws.Close()
 
-	// Канал для асинхронной отправки сообщений
-	msgChan := make(chan []byte)
-	defer close(msgChan)
+	clientsMu.Lock()
+	clientIDCounter++
+	clientID := clientIDCounter
+	clients[ws] = clientID
+	clientsMu.Unlock()
 
-	// Горутина для отправки сообщений
-	go func() {
-		for message := range msgChan {
-			if err := ws.WriteMessage(websocket.TextMessage, message); err != nil {
-				log.Println("Ошибка отправки сообщения:", err)
-				break
-			}
-		}
-	}()
+	log.Printf("Клиент %d подключился", clientID)
 
-	// Настройка обработчика Ping
-	ws.SetPingHandler(func(appData string) error {
-		log.Println("Получен Ping")
-		return ws.WriteControl(websocket.PongMessage, []byte(appData), time.Now().Add(10*time.Second))
+	broadcastMessage(Message{
+		ClientID: clientID,
+		Author:   "Система",
+		Body:     fmt.Sprintf("Клиент %d подключился", clientID),
 	})
 
-	// Настройка обработчика Pong
-	ws.SetPongHandler(func(appData string) error {
-		log.Println("Получен Pong")
-		return nil
-	})
-
-	// Таймер для отправки Ping
-	pingTicker := time.NewTicker(30 * time.Second)
-	defer pingTicker.Stop()
-
-	// Основной цикл обработки сообщений
 	for {
-		select {
-		case <-pingTicker.C:
-			// Отправляем Ping клиенту
-			if err := ws.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
-				log.Println("Ошибка отправки Ping:", err)
-				return
-			}
+		var msg Message
+		err := ws.ReadJSON(&msg)
+		if err != nil {
+			log.Printf("Клиент %d отключился", clientID)
+			clientsMu.Lock()
+			delete(clients, ws)
+			clientsMu.Unlock()
 
-		default:
-			// Чтение сообщения от клиента
-			_, message, err := ws.ReadMessage()
-			if err != nil {
-				log.Println("Ошибка чтения сообщения:", err)
-				return
-			}
+			broadcastMessage(Message{
+				ClientID: clientID,
+				Author:   "Система",
+				Body:     fmt.Sprintf("Клиент %d отключился", clientID),
+			})
 
-			// Логируем полученное сообщение
-			log.Printf("Received: %s", message)
+			return
+		}
 
-			// Отправляем сообщение в канал для асинхронной обработки
-			msgChan <- message
+		msg.ClientID = clientID
+		msg.Author = fmt.Sprintf("Клиент %d", clientID)
+
+		log.Printf("Сообщение от клиента %d: %s", clientID, msg.Body)
+
+		broadcastMessage(msg)
+	}
+}
+
+func broadcastMessage(msg Message) {
+	clientsMu.Lock()
+	defer clientsMu.Unlock()
+
+	for client := range clients {
+		if err := client.WriteJSON(msg); err != nil {
+			log.Println("Ошибка отправки сообщения:", err)
+			client.Close()
+			delete(clients, client)
 		}
 	}
 }
